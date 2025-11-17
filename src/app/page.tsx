@@ -388,6 +388,7 @@ export default function Home() {
                   <input
                     type="file"
                     accept={fileAccept}
+                    capture="environment"
                     className="hidden"
                     onChange={handleFileChange}
                   />
