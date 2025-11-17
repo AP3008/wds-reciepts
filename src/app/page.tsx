@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -46,7 +46,7 @@ const makeItemId = () => {
 
 const formatBytes = (bytes?: number) => {
   if (!bytes) {
-    return "—";
+    return "â€”";
   }
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -408,7 +408,7 @@ export default function Home() {
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">File</span>
                       <span className="font-medium text-white">
-                        {uploadMeta.name ?? "—"}
+                        {uploadMeta.name ?? "â€”"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -422,12 +422,12 @@ export default function Home() {
                       <span className="font-medium text-white">
                         {uploadMeta.uploadedAt
                           ? formatDisplayDate(uploadMeta.uploadedAt)
-                          : "—"}
+                          : "â€”"}
                       </span>
                     </div>
                   </div>
                   <p className="mt-4 text-xs text-slate-500">
-                    Encrypted transit · auto-delete confirmed.
+                    Encrypted transit Â· auto-delete confirmed.
                   </p>
                 </div>
               </div>
@@ -453,7 +453,7 @@ export default function Home() {
                       OCR
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-white">
-                      {confidencePercent || "—"}%
+                      {confidencePercent || "â€”"}%
                     </p>
                     <p className="text-xs text-slate-400">
                       Raw text extraction
@@ -464,7 +464,7 @@ export default function Home() {
                       Tax detection
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-white">
-                      {taxConfidencePercent || "—"}%
+                      {taxConfidencePercent || "â€”"}%
                     </p>
                     <p className="text-xs text-slate-400">
                       Subtotal + tax alignment
@@ -473,7 +473,7 @@ export default function Home() {
                 </div>
                 {requiresRetake && (
                   <p className="mt-4 rounded-xl border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-100">
-                    Confidence looks low—try retaking the photo or uploading a
+                    Confidence looks lowâ€”try retaking the photo or uploading a
                     sharper scan.
                   </p>
                 )}
@@ -862,7 +862,7 @@ export default function Home() {
               <div className="mt-5 space-y-3">
                 {filteredHistory.length === 0 && (
                   <p className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-slate-400">
-                    Nothing yet—capture a receipt to populate history.
+                    Nothing yetâ€”capture a receipt to populate history.
                   </p>
                 )}
                 {filteredHistory.map((receipt) => (
@@ -1055,7 +1055,7 @@ export default function Home() {
                       <span>
                         {preferences.emoji && item.emoji ? `${item.emoji} ` : ""}
                         {item.name}
-                        {item.quantity > 1 ? ` ×${item.quantity}` : ""}
+                        {item.quantity > 1 ? ` Ã—${item.quantity}` : ""}
                       </span>
                       <span>{formatCurrency(item.price)}</span>
                     </div>
@@ -1079,3 +1079,4 @@ export default function Home() {
     </div>
   );
 }
+
