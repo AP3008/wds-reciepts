@@ -17,6 +17,8 @@ import {
   formatDisplayDate,
   mockProcessReceipt,
 } from "@/lib/receipts";
+import { useDropzone } from "react-dropzone";
+
 
 type PreferenceState = {
   insights: boolean;
@@ -152,6 +154,54 @@ export default function Home() {
       setSelectedReceiptId(filteredHistory[0].id);
     }
   }, [filteredHistory, selectedReceiptId]);
+
+  //useDropzone Hook
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  accept: {
+    'image/png': ['.png'],
+    'image/jpeg': ['.jpg', '.jpeg'],
+    'image/heic': ['.heic'],
+    'image/heif': ['.heif'],
+    'application/pdf': ['.pdf']
+  },
+  maxSize: 10 * 1024 * 1024,
+  multiple: false,
+  onDrop: async (acceptedFiles, fileRejections) => {
+    if (fileRejections.length > 0) {
+      const rejection = fileRejections[0];
+      if (rejection.errors[0]?.code === 'file-too-large') {
+        setError('File size must be less than 10MB');
+      } else if (rejection.errors[0]?.code === 'file-invalid-type') {
+        setError('Please upload a JPEG, PNG, HEIC, or PDF file');
+      } else {
+        setError('Invalid file. Please try another.');
+      }
+      return;
+    }
+
+    if (acceptedFiles.length > 0) {
+      const file = acceptedFiles[0];
+      setError(null);
+      setIsProcessing(true);
+      setConfirmReview(false);
+      setUploadMeta({
+        name: file.name,
+        size: file.size,
+        uploadedAt: new Date().toISOString(),
+      });
+
+      try {
+        const processed = await mockProcessReceipt(file);
+        setDraft(processed);
+      } catch {
+        setError("Processing failed. Please try another capture.");
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  }
+});
 
   const selectedReceipt = filteredHistory.find(
     (receipt) => receipt.id === selectedReceiptId,
@@ -378,21 +428,52 @@ export default function Home() {
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <label className="group flex flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-300/50 bg-emerald-400/5 px-4 py-8 text-center text-sm text-emerald-100 transition hover:border-emerald-200/80 hover:bg-emerald-400/10">
-                  <span className="text-base font-semibold text-emerald-100">
-                    Drop receipt or click to upload
-                  </span>
-                  <span className="mt-2 text-xs text-emerald-200/70">
-                    Files are deleted once OCR completes.
-                  </span>
-                  <input
-                    type="file"
-                    accept={fileAccept}
-                    capture="environment"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                </label>
+                
+                {/* User Drag and Drop feature */}
+                
+                <div
+                    {...getRootProps()}
+                    className={` 
+                      group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed 
+                      px-4 py-8 text-center text-sm cursor-pointer transition-all duration-200
+                      ${isDragActive
+                        ? 'border-emerald-400 bg-emerald-400/20 scale-[1.02]' 
+                        : 'border-emerald-300/50 bg-emerald-400/5 hover:border-emerald-200/80 hover:bg-emerald-400/10'
+                      }
+                    `}>
+
+                      <input {...getInputProps()} />
+  
+                      <div className={`
+                        rounded-full p-3 mb-3 transition-all duration-200
+                        ${isDragActive
+                          ? 'bg-emerald-400/30 scale-110' 
+                          : 'bg-emerald-400/10 group-hover:bg-emerald-400/20'
+                        }
+                      `}>
+                        <svg 
+                          className={`h-10 w-10 transition-colors ${isDragActive ? 'text-emerald-200' : 'text-emerald-300'}`}
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
+                          />
+                    </svg>
+                  </div>
+
+  
+  <span className="text-base font-semibold text-emerald-100">
+    {isDragActive ? 'Drop your receipt here' : 'Drop receipt or click to upload'}
+  </span>
+  <span className="mt-2 text-xs text-emerald-200/70">
+    Files are deleted once OCR completes.
+  </span>
+  </div>
 
                 <div className="rounded-2xl border border-white/5 bg-black/30 p-4 text-sm">
                   <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
@@ -1079,5 +1160,9 @@ export default function Home() {
       </div>
     </div>
   );
+}
+
+function setError(arg0: string) {
+  throw new Error("Function not implemented.");
 }
 
