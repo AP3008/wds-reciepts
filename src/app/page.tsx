@@ -192,17 +192,25 @@ export default function Home() {
         uploadedAt: new Date().toISOString(),
       });
 
-      try {
-        const processed = await mockProcessReceipt(file);
-        setDraft(processed);
-      } catch {
-        setError("Processing failed. Please try another capture.");
-      } finally {
-        setIsProcessing(false);
-      }
+      {/* Try to process file w/ OCR and extract data */}
+      try{
+        console.log("Processing...");
+        const imageUrl = URL.createObjectURL(file); 
+        const ocrText = await convertor(imageUrl); 
+        console.log("OCR Text: ", ocrText); 
+        URL.revokeObjectURL(imageUrl); 
+        const processed = await mockProcessReceipt(file); 
+        processed.rawtext = ocrText; 
+        setDraft(processed); 
+      } catch(error){
+        console.error("OCR error: ", error);
+        setError("Processing failed. Please try another image."); 
+    }
+    finally{
+      setIsProcessing(false); 
     }
   }
-});
+}});
 
   const selectedReceipt = filteredHistory.find(
     (receipt) => receipt.id === selectedReceiptId,
