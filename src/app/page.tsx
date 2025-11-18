@@ -18,6 +18,7 @@ import {
   mockProcessReceipt,
 } from "@/lib/receipts";
 import { useDropzone } from "react-dropzone";
+import convertor from "@/api/ocr/convertor";
 
 
 type PreferenceState = {
@@ -345,7 +346,7 @@ export default function Home() {
         receipt.id === id ? { ...receipt, pinned: !receipt.pinned } : receipt,
       ),
     );
-  };
+  }; 
   const preferenceToggles: { key: keyof PreferenceState; label: string; desc: string }[] =
     [
       {
