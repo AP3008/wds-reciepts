@@ -221,8 +221,6 @@ export default function Home() {
         console.log("Groq interpretation successful: ", interpretData);
         const groqData = interpretData.data; 
         const mapPaymentMethod = (method: string) => {
-        const methodLower = method.toLowerCase();
-        const mapPaymentMethod = (method: string) => {
           const methodLower = method.toLocaleLowerCase(); 
           if (methodLower.includes('visa')) return 'Visa';
           if (methodLower.includes('mastercard') || methodLower.includes('master card')) return 'Mastercard';
@@ -258,7 +256,6 @@ export default function Home() {
             ["Low confidence detected - please verify all fields before saving"] : 
             ["Data looks good! Review and save when ready"],
         });
-      }
     } catch(error){
         console.error("Processing error: ", error);
         setError(error instanceof Error ? error.message : "Processing failed. Please try another capture.");
@@ -1228,7 +1225,4 @@ export default function Home() {
   );
 }
 
-function setError(arg0: string) {
-  throw new Error("Function not implemented.");
-}
 
