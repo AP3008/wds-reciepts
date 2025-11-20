@@ -26,14 +26,6 @@ type InterpretedReceipt = {
 
 export async function POST(request: Request){
     try{
-        //Double checking if API key exists 
-        if (!process.env.GROQ_API_KEY) {
-            console.error("GROQ_API_KEY is not set in environment variables");
-            return NextResponse.json(
-                { error: "Server configuration error: GROQ_API_KEY is not configured" },
-                { status: 500 }
-             );
-        }
 
         //Initializing Groq client 
 

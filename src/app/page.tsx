@@ -20,6 +20,7 @@ import {
 import { useDropzone } from "react-dropzone";
 import convertor from "@/app/api/ocr/convertor";
 import { generateCSV, downloadCSV } from "@/lib/csvExport";
+import { generateBulkCSV } from "@/lib/csvExport";
 
 
 type PreferenceState = {
@@ -416,6 +417,17 @@ export default function Home() {
   downloadCSV(csvContent, filename);
 };
 
+const handleDownloadAllCSV = () => {
+  if (history.length === 0) {
+    setError("No receipts to export.");
+    return;
+  }
+  
+  const csvContent = generateBulkCSV(history);
+  const filename = `all_receipts_${new Date().toISOString().slice(0, 10)}.csv`;
+  downloadCSV(csvContent, filename);
+};
+
   const toggleFavorite = (id: string) => {
     setHistory((prev) =>
       prev.map((receipt) =>
@@ -487,14 +499,20 @@ export default function Home() {
                 <span className="text-slate-400">Receipt limit</span>
                 <span className="font-medium text-white">Unlimited</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Export</span>
-                <span className="font-medium text-white">
-                  CSV (coming soon)
-                </span>
+         
+                 <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-400">Export</span>
+                  <button
+                    type="button"
+                    onClick={handleDownloadAllCSV}
+                    disabled={history.length === 0}
+                    className="rounded-lg bg-emerald-500/90 px-3 py-1 text-xs font-semibold text-white transition hover:bg-emerald-400 disabled:bg-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                  >
+                    CSV
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
         </header>
 
         <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -624,7 +642,7 @@ export default function Home() {
                     Model confidence
                   </p>
                   <span className="rounded-full border border-emerald-300/40 px-3 py-1 text-xs text-emerald-100">
-                    OCR + GPT-4o-mini
+                    OCR + llama-3.3-70b-versatile
                   </span>
                 </div>
                 <div className="mt-4 h-2 rounded-full bg-white/10">
@@ -908,18 +926,6 @@ export default function Home() {
             </label>
             
             <div className="flex gap-3">
-              {/* Download CSV Button */}
-             <button
-                type="button"
-                onClick={handleDownloadCSV}
-                disabled={!draft.store.trim() || draft.total <= 0}
-                className="flex items-center gap-2 rounded-2xl border border-emerald-400/50 bg-emerald-400/10 px-6 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Download CSV
-              </button>
               
               {/* Save to History Button */}
               <button
