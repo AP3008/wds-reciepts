@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Roboto_Mono } from "next/font/google";
 import "./globals.css";
-import "swagger-ui-react/swagger-ui.css";
-import "@scalar/api-reference-react/style.css";
 
 const sans = Inter({
   variable: "--font-geist-sans",

@@ -1,61 +1,36 @@
-## Development quickstart
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-1. Install dependencies once: `npm install`
-2. Duplicate `.env.local` and provide real Supabase credentials (see below).
-3. Run the dev server with `npm run dev` and navigate to `http://localhost:3000`.
+## Getting Started
 
-## Environment
+First, run the development server:
 
-Set the following variables in `.env.local` (already gitignored):
-
-```
-SUPABASE_URL="https://your-project-id.supabase.co"
-SUPABASE_ANON_KEY="your-anon-key"
-SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
-SUPABASE_RECEIPTS_BUCKET="receipts"
-```
-
-Create a `hello_world` Postgres function in Supabase so the connection test has something to call:
-
-```sql
-create or replace function public.hello_world()
-returns text
-language sql
-security definer
-set search_path = public
-as $$
-  select 'hello world'::text;
-$$;
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-Once populated, hit `GET /api/supabase-test` to verify the client can reach Supabase. Errors are returned as JSON with `ok: false`.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## API routes
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-- `POST /api/ocr` – accepts a multipart `file` upload, saves it to Supabase Storage, and returns `{ rawText: "SAMPLE", message: "File uploaded successfully", storedPath, publicUrl }` as a stubbed OCR response.
-- `GET /api/supabase-test` – executes the `hello_world` RPC against Supabase to confirm connectivity.
-- `GET /api/openapi` – serves the generated OpenAPI 3.1 document that powers both docs experiences.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Storage
+## Learn More
 
-- Provision a bucket in Supabase Storage (defaults to `receipts` via `SUPABASE_RECEIPTS_BUCKET`).
-- Provide `SUPABASE_SERVICE_ROLE_KEY` so the server route can upload directly to Storage.
-- Files are written under `uploads/YYYY-MM-DD/{uuid}.{ext}`. If the bucket is public, the returned `publicUrl` will be immediately accessible; otherwise treat it as a private path.
+To learn more about Next.js, take a look at the following resources:
 
-## API documentation
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-- Scalar reference UI: visit `/docs` for a dark-mode, searchable API explorer.
-- Swagger UI: visit `/docs/swagger` for the classic Swagger experience with request builders.
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Local receipt storage
+## Deploy on Vercel
 
-Structured receipts are persisted to `localStorage` under the `receipts_v1` key. The UI boots with sample data, hydrates from the cached list when available, and syncs every time the history changes so saved receipts survive browser refreshes.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-## Available scripts
-
-| Script        | Action            |
-| ------------- | ----------------- |
-| `npm run dev` | Start dev server  |
-| `npm run build` | Create production build |
-| `npm run start` | Launch production server |
-| `npm run lint` | Run ESLint |
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
