@@ -17,6 +17,11 @@ import {
   formatDisplayDate,
   mockProcessReceipt,
 } from "@/lib/receipts";
+import { useDropzone } from "react-dropzone";
+import convertor from "@/app/api/ocr/convertor";
+import { generateCSV, downloadCSV } from "@/lib/csvExport";
+import { generateBulkCSV } from "@/lib/csvExport";
+
 
 type PreferenceState = {
   insights: boolean;
@@ -94,6 +99,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmReview, setConfirmReview] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<string>(""); 
   const [preferences, setPreferences] = useState<PreferenceState>({
     insights: true,
     summaries: true,
@@ -152,6 +158,127 @@ export default function Home() {
       setSelectedReceiptId(filteredHistory[0].id);
     }
   }, [filteredHistory, selectedReceiptId]);
+
+  //useDropzone Hook
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  accept: {
+    'image/png': ['.png'],
+    'image/jpeg': ['.jpg', '.jpeg'],
+    'image/heic': ['.heic'],
+    'image/heif': ['.heif'],
+    'application/pdf': ['.pdf']
+  },
+  maxSize: 10 * 1024 * 1024,
+  multiple: false,
+  onDrop: async (acceptedFiles, fileRejections) => {
+    if (fileRejections.length > 0) {
+      const rejection = fileRejections[0];
+      if (rejection.errors[0]?.code === 'file-too-large') {
+        setError('File size must be less than 10MB');
+      } else if (rejection.errors[0]?.code === 'file-invalid-type') {
+        setError('Please upload a JPEG, PNG, HEIC, or PDF file');
+      } else {
+        setError('Invalid file. Please try another.');
+      }
+      return;
+    }
+
+    if (acceptedFiles.length > 0) {
+      const file = acceptedFiles[0];
+      setError(null);
+      setIsProcessing(true);
+      setConfirmReview(false);
+      setUploadMeta({
+        name: file.name,
+        size: file.size,
+        uploadedAt: new Date().toISOString(),
+      });
+
+      /* Try to process file w/ OCR and extract data */
+      try{
+        //Uploading 
+        setLoadingStage("Uploading file...");
+        await new Promise(resolve => setTimeout(resolve, 800)); //Pausing for UX
+        
+        //OCR extraction
+        setLoadingStage(
+          file.type === 'application/pdf' 
+            ? "Extracting text from PDF pages..." 
+            : "Extracting text from receipt..."
+        );
+        console.log("Starting OCR processing...");
+        const ocrText = await convertor(file); // Pass file directly instead of URL
+        console.log("OCR Text:", ocrText);
+        
+        //AI Interpretation 
+        setLoadingStage("Processing receipt with AI..."); 
+        const interpretResponse = await fetch('/api/interpret',{
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ocrText }),
+        });
+        if(!interpretResponse.ok){
+          const errorData = await interpretResponse.json();
+          throw new Error(errorData.error || 'Failed to interpret receipt');
+        }
+        const interpretData = await interpretResponse.json(); 
+
+        if(!interpretData.success){
+          throw new Error(interpretData.error || 'Interpretation failed');
+        }
+        console.log("Groq interpretation successful: ", interpretData);
+        const groqData = interpretData.data; 
+        const mapPaymentMethod = (method: string) => {
+          const methodLower = method.toLocaleLowerCase(); 
+          if (methodLower.includes('visa')) return 'Visa';
+          if (methodLower.includes('mastercard') || methodLower.includes('master card')) return 'Mastercard';
+          if (methodLower.includes('amex') || methodLower.includes('american express')) return 'Amex';
+          if (methodLower.includes('debit')) return 'Debit';
+          if (methodLower.includes('cash')) return 'Cash';
+          if (methodLower.includes('apple pay')) return 'Apple Pay';
+          if (methodLower.includes('google pay')) return 'Google Pay';
+          return 'Visa'; // Default fallback
+        };
+
+         // Create the draft with AI-interpreted data (i.e populating form)
+         setLoadingStage("Populating form fields..."); 
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        setDraft({
+          store: groqData.vendor || "",
+          date: groqData.date || new Date().toISOString().slice(0, 10),
+          total: groqData.total || 0,
+          tax: groqData.tax || 0,
+          category: "", // User will select this manually
+          paymentMethod: mapPaymentMethod(groqData.paymentMethod),
+          items: groqData.items.map((item: any) => ({
+            id: item.id || makeItemId(), // Use Groq's ID or generate one
+            name: item.name || "",
+            quantity: item.quantity || 1,
+            price: item.price || 0,
+          })),
+          notes: `Uploaded: ${file.name}`,
+          summary: `AI interpretation completed with ${(groqData.confidence * 100).toFixed(0)}% confidence`,
+          emojiTag: undefined,
+          rawText: ocrText, // Store the original OCR text
+          confidence: groqData.confidence || 0,
+          taxConfidence: groqData.tax > 0 ? 0.85 : 0.5,
+          suggestions: groqData.confidence < 0.7 ? 
+            ["Low confidence detected - please verify all fields before saving"] : 
+            ["Data looks good! Review and save when ready"],
+        });
+    } catch(error){
+        console.error("Processing error: ", error);
+        setError(error instanceof Error ? error.message : "Processing failed. Please try another capture.");
+    }
+    finally{
+      setIsProcessing(false); 
+    }
+  }
+}});
 
   const selectedReceipt = filteredHistory.find(
     (receipt) => receipt.id === selectedReceiptId,
@@ -279,6 +406,28 @@ export default function Home() {
     setError(null);
   };
 
+  const handleDownloadCSV = () => {
+  if (!draft.store.trim() || draft.total <= 0) {
+    setError("Please populate receipt data before downloading CSV.");
+    return;
+  }
+
+  const csvContent = generateCSV(draft);
+  const filename = `receipt_${draft.store.replace(/[^a-z0-9]/gi, '_')}_${draft.date}.csv`;
+  downloadCSV(csvContent, filename);
+};
+
+const handleDownloadAllCSV = () => {
+  if (history.length === 0) {
+    setError("No receipts to export.");
+    return;
+  }
+  
+  const csvContent = generateBulkCSV(history);
+  const filename = `all_receipts_${new Date().toISOString().slice(0, 10)}.csv`;
+  downloadCSV(csvContent, filename);
+};
+
   const toggleFavorite = (id: string) => {
     setHistory((prev) =>
       prev.map((receipt) =>
@@ -295,7 +444,7 @@ export default function Home() {
         receipt.id === id ? { ...receipt, pinned: !receipt.pinned } : receipt,
       ),
     );
-  };
+  }; 
   const preferenceToggles: { key: keyof PreferenceState; label: string; desc: string }[] =
     [
       {
@@ -350,14 +499,20 @@ export default function Home() {
                 <span className="text-slate-400">Receipt limit</span>
                 <span className="font-medium text-white">Unlimited</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Export</span>
-                <span className="font-medium text-white">
-                  CSV (coming soon)
-                </span>
+         
+                 <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-400">Export</span>
+                  <button
+                    type="button"
+                    onClick={handleDownloadAllCSV}
+                    disabled={history.length === 0}
+                    className="rounded-lg bg-emerald-500/90 px-3 py-1 text-xs font-semibold text-white transition hover:bg-emerald-400 disabled:bg-slate-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                  >
+                    CSV
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
         </header>
 
         <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -378,21 +533,69 @@ export default function Home() {
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <label className="group flex flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-300/50 bg-emerald-400/5 px-4 py-8 text-center text-sm text-emerald-100 transition hover:border-emerald-200/80 hover:bg-emerald-400/10">
-                  <span className="text-base font-semibold text-emerald-100">
-                    Drop receipt or click to upload
-                  </span>
-                  <span className="mt-2 text-xs text-emerald-200/70">
-                    Files are deleted once OCR completes.
-                  </span>
-                  <input
-                    type="file"
-                    accept={fileAccept}
-                    capture="environment"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                </label>
+                
+                {/* User Drag and Drop feature */}
+                
+                <div
+                    {...getRootProps()}
+                    className={` 
+                      group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed 
+                      px-4 py-8 text-center text-sm cursor-pointer transition-all duration-200
+                      ${isDragActive
+                        ? 'border-emerald-400 bg-emerald-400/20 scale-[1.02]' 
+                        : 'border-emerald-300/50 bg-emerald-400/5 hover:border-emerald-200/80 hover:bg-emerald-400/10'
+                      }
+                    `}>
+
+                      <input {...getInputProps()} />
+  
+                      <div className={`
+                        rounded-full p-3 mb-3 transition-all duration-200
+                        ${isDragActive
+                          ? 'bg-emerald-400/30 scale-110' 
+                          : 'bg-emerald-400/10 group-hover:bg-emerald-400/20'
+                        }
+                      `}>
+                        <svg 
+                          className={`h-10 w-10 transition-colors ${isDragActive ? 'text-emerald-200' : 'text-emerald-300'}`}
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
+                          />
+                    </svg>
+                  </div>
+                   {/* Loading Stage Indicator */}
+                    {isProcessing && loadingStage && (
+                      <div 
+                        className="mt-4 rounded-2xl border border-emerald-300/40 bg-emerald-400/10 p-4 animate-in fade-in slide-in-from-top-2 duration-300"
+                        style={{
+                          animation: 'fadeIn 300ms ease-in-out'
+                        }}
+                      >
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <div className="h-8 w-8 animate-spin rounded-full border-3 border-emerald-400 border-t-transparent"></div>
+                          <span className="text-sm font-medium text-emerald-100">
+                            {loadingStage}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+
+  
+  <span className="text-base font-semibold text-emerald-100">
+    {isDragActive ? 'Drop your receipt here' : 'Drop receipt or click to upload'}
+  </span>
+  <span className="mt-2 text-xs text-emerald-200/70">
+    Files are deleted once OCR completes.
+  </span>
+  </div>
 
                 <div className="rounded-2xl border border-white/5 bg-black/30 p-4 text-sm">
                   <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
@@ -439,7 +642,7 @@ export default function Home() {
                     Model confidence
                   </p>
                   <span className="rounded-full border border-emerald-300/40 px-3 py-1 text-xs text-emerald-100">
-                    OCR + GPT-4o-mini
+                    OCR + llama-3.3-70b-versatile
                   </span>
                 </div>
                 <div className="mt-4 h-2 rounded-full bg-white/10">
@@ -711,27 +914,32 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/5 bg-black/40 p-4">
-                <label className="flex items-center gap-3 text-sm text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={confirmReview}
-                    onChange={(event) => setConfirmReview(event.target.checked)}
-                    className="h-4 w-4 rounded border border-white/30 bg-transparent accent-emerald-400"
-                  />
-                  I reviewed the fields above.
-                </label>
-                <button
-                  type="button"
-                  onClick={handleSaveReceipt}
-                  disabled={
-                    !confirmReview || !draft.store.trim() || draft.total <= 0
-                  }
-                  className="rounded-2xl bg-emerald-400/90 px-6 py-3 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-emerald-400/30"
-                >
-                  Save to history
-                </button>
-              </div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/5 bg-black/40 p-4">
+            <label className="flex items-center gap-3 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={confirmReview}
+                onChange={(event) => setConfirmReview(event.target.checked)}
+                className="h-4 w-4 rounded border border-white/30 bg-transparent accent-emerald-400"
+              />
+              I reviewed the fields above.
+            </label>
+            
+            <div className="flex gap-3">
+              
+              {/* Save to History Button */}
+              <button
+                type="button"
+                onClick={handleSaveReceipt}
+                disabled={
+                  !confirmReview || !draft.store.trim() || draft.total <= 0
+                }
+                className="rounded-2xl bg-emerald-400/90 px-6 py-3 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-emerald-400/30"
+              >
+                Save to history
+              </button>
+            </div>
+          </div>
             </div>
 
             {error && (
@@ -1080,4 +1288,5 @@ export default function Home() {
     </div>
   );
 }
+
 
