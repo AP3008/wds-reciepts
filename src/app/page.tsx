@@ -535,7 +535,7 @@ const handleDownloadAllCSV = () => {
                 Capture, verify, and save every receipt in seconds.
               </h1>
               <p className="mt-2 max-w-2xl text-lg text-slate-300">
-                Upload paper or digital proof, let OCR + GPT-4o-mini interpret
+                Upload paper or digital proof, let OCR + llama 3.3 interpret
                 it, and store structured data for lightning-fast search.
               </p>
             </div>
