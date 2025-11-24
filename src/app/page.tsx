@@ -21,6 +21,7 @@ import { useDropzone } from "react-dropzone";
 import convertor from "@/app/api/ocr/convertor";
 import { generateCSV, downloadCSV } from "@/lib/csvExport";
 import { generateBulkCSV } from "@/lib/csvExport";
+import Link from "next/link";
 
 
 type PreferenceState = {
@@ -93,7 +94,7 @@ const fileAccept =
   ".pdf, image/png, image/jpeg, image/heic, application/pdf, image/heif";
 
 export default function Home() {
-  const [history, setHistory] = useState<Receipt[]>(SAMPLE_RECEIPTS);
+  const [history, setHistory] = useState<Receipt[]>([]);
   const [draft, setDraft] = useState<ReceiptDraft>(emptyReceiptDraft());
   const [uploadMeta, setUploadMeta] = useState<UploadMeta>({});
   const [isProcessing, setIsProcessing] = useState(false);
@@ -105,6 +106,21 @@ export default function Home() {
     summaries: true,
     emoji: true,
   });
+  useEffect(() => {
+  // TODO: Replace with database fetch
+  //THIS IS CURRENTLY A TEMP LOCAL STORAGE 
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("receiptHistory");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setHistory(parsed);
+      } catch (e) {
+        console.error("Failed to load history from storage");
+      }
+    }
+  }
+}, []);
   const [filters, setFilters] = useState<FilterState>({
     query: "",
     category: "all",
@@ -338,6 +354,26 @@ export default function Home() {
     }
   };
 
+  const deleteReceipt = (id: string) => {
+  if (confirm("Are you sure you want to delete this receipt?")) {
+    setHistory((prev) => {
+      const updated = prev.filter((receipt) => receipt.id !== id);
+      
+      // Update localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("receiptHistory", JSON.stringify(updated));
+      }
+      
+      return updated;
+    });
+    
+    // Clear selection if deleted receipt was selected
+    if (selectedReceiptId === id) {
+      setSelectedReceiptId("");
+    }
+  }
+};
+
   const handleItemChange = (
     index: number,
     field: keyof ReceiptItem,
@@ -390,21 +426,34 @@ export default function Home() {
   };
 
   const handleSaveReceipt = () => {
-    if (!confirmReview) {
-      return;
+  if (!confirmReview) {
+    return;
+  }
+  if (!draft.store.trim() || draft.total <= 0) {
+    setError("Store name and total are required to save.");
+    return;
+  }
+  const newReceipt = createReceiptFromDraft(draft);
+  
+  // Update state
+  setHistory((prev) => {
+    const updated = [newReceipt, ...prev];
+    
+    // TODO: When database is ready, replace with API call
+    // Temporary: Save to localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem("receiptHistory", JSON.stringify(updated));
     }
-    if (!draft.store.trim() || draft.total <= 0) {
-      setError("Store name and total are required to save.");
-      return;
-    }
-    const newReceipt = createReceiptFromDraft(draft);
-    setHistory((prev) => [newReceipt, ...prev]);
-    setSelectedReceiptId(newReceipt.id);
-    setDraft(emptyReceiptDraft());
-    setConfirmReview(false);
-    setUploadMeta({});
-    setError(null);
-  };
+    
+    return updated;
+  });
+  
+  setSelectedReceiptId(newReceipt.id);
+  setDraft(emptyReceiptDraft());
+  setConfirmReview(false);
+  setUploadMeta({});
+  setError(null);
+};
 
   const handleDownloadCSV = () => {
   if (!draft.store.trim() || draft.total <= 0) {
@@ -1107,40 +1156,61 @@ const handleDownloadAllCSV = () => {
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            toggleFavorite(receipt.id);
-                          }}
-                          className={`rounded-full border px-2 py-0.5 ${
-                            receipt.favorite
-                              ? "border-amber-300/50 text-amber-200"
-                              : "border-white/10 text-slate-400"
-                          }`}
-                        >
-                          ?
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            togglePinned(receipt.id);
-                          }}
-                          className={`rounded-full border px-2 py-0.5 ${
-                            receipt.pinned
-                              ? "border-sky-300/50 text-sky-200"
-                              : "border-white/10 text-slate-400"
-                          }`}
-                        >
-                          ??
-                        </button>
-                      </div>
-                      <span>{receipt.paymentMethod}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleFavorite(receipt.id);
+                        }}
+                        className={`rounded-full border px-2 py-0.5 ${
+                          receipt.favorite
+                            ? "border-amber-300/50 text-amber-200"
+                            : "border-white/10 text-slate-400"
+                        }`}
+                      >
+                        ★
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          togglePinned(receipt.id);
+                        }}
+                        className={`rounded-full border px-2 py-0.5 ${
+                          receipt.pinned
+                            ? "border-sky-300/50 text-sky-200"
+                            : "border-white/10 text-slate-400"
+                        }`}
+                      >
+                        📌
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteReceipt(receipt.id);
+                        }}
+                        className="rounded-full border border-white/10 px-2 py-0.5 text-slate-400 transition hover:border-rose-400/50 hover:text-rose-200"
+                      >
+                        🗑️
+                      </button>
                     </div>
+                    <span>{receipt.paymentMethod}</span>
+                  </div>
                   </button>
                 ))}
+                {filteredHistory.length > 0 && (
+                  <Link
+                    href="/history"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-400/50 bg-emerald-400/10 px-6 py-4 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/20"
+                  >
+                    View All History
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                )}
               </div>
             </div>
 
