@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   CATEGORY_OPTIONS,
   type Receipt,
@@ -22,8 +22,7 @@ type FilterState = {
   sortOrder: "asc" | "desc";
 };
 
-// TODO: Replace with actual database fetch
-// For now, we'll load from localStorage to persist data
+// Helper function to load receipts from localStorage
 function loadReceiptsFromStorage(): Receipt[] {
   if (typeof window === "undefined") return [];
   
@@ -36,8 +35,11 @@ function loadReceiptsFromStorage(): Receipt[] {
 }
 
 export default function HistoryPage() {
-  // TODO: Replace with database fetch (e.g., useEffect + API call)
-  const [receipts, setReceipts] = useState<Receipt[]>(loadReceiptsFromStorage());
+  // All hooks must be inside the component
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [bulkSummary, setBulkSummary] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [showSummary, setShowSummary] = useState(true);
   const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>({
     query: "",
@@ -48,8 +50,54 @@ export default function HistoryPage() {
     sortOrder: "desc",
   });
 
+  // Load receipts on mount
+  useEffect(() => {
+    setReceipts(loadReceiptsFromStorage());
+  }, []);
+
+  // Generate bulk summary when receipts are loaded
+  useEffect(() => {
+    if (receipts.length > 0 && !bulkSummary && showSummary) {
+      generateBulkSummary();
+    }
+  }, [receipts.length]);
+
+  const generateBulkSummary = async () => {
+    if (receipts.length === 0) return;
+  
+    setIsGeneratingSummary(true);
     
-    const sortedAndFilteredReceipts = useMemo(() => {
+    try {
+      console.log("Generating bulk summary for", receipts.length, "receipts...");
+      
+      const response = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'bulk',
+          receipts: receipts,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.summary) {
+          setBulkSummary(data.summary);
+          console.log("Bulk summary generated");
+        }
+      } else {
+        console.error("Failed to generate bulk summary");
+      }
+    } catch (error) {
+      console.error("Error generating bulk summary:", error);
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+    
+  const sortedAndFilteredReceipts = useMemo(() => {
     let filtered = [...receipts];
 
     // Apply filters
@@ -110,38 +158,42 @@ export default function HistoryPage() {
   }, [receipts]);
 
   const toggleFavorite = (id: string) => {
-    // TODO: Update via API call to database
-    setReceipts((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, favorite: !r.favorite } : r))
-    );
-  };
-
-  const togglePinned = (id: string) => {
-    // TODO: Update via API call to database
-    setReceipts((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, pinned: !r.pinned } : r))
-    );
-  };
-
-  const deleteReceipt = (id: string) => {
-  // TODO: Delete via API call to database
-  if (confirm("Are you sure you want to delete this receipt?")) {
     setReceipts((prev) => {
-      const updated = prev.filter((r) => r.id !== id);
-      
-      // Update localStorage
+      const updated = prev.map((r) => (r.id === id ? { ...r, favorite: !r.favorite } : r));
       if (typeof window !== "undefined") {
         localStorage.setItem("receiptHistory", JSON.stringify(updated));
       }
-      
       return updated;
     });
-    
-    if (selectedReceiptId === id) {
-      setSelectedReceiptId(null);
+  };
+
+  const togglePinned = (id: string) => {
+    setReceipts((prev) => {
+      const updated = prev.map((r) => (r.id === id ? { ...r, pinned: !r.pinned } : r));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("receiptHistory", JSON.stringify(updated));
+      }
+      return updated;
+    });
+  };
+
+  const deleteReceipt = (id: string) => {
+    if (confirm("Are you sure you want to delete this receipt?")) {
+      setReceipts((prev) => {
+        const updated = prev.filter((r) => r.id !== id);
+        
+        if (typeof window !== "undefined") {
+          localStorage.setItem("receiptHistory", JSON.stringify(updated));
+        }
+        
+        return updated;
+      });
+      
+      if (selectedReceiptId === id) {
+        setSelectedReceiptId(null);
+      }
     }
-  }
-};
+  };
 
   const handleExportAll = () => {
     if (sortedAndFilteredReceipts.length === 0) return;
@@ -177,6 +229,62 @@ export default function HistoryPage() {
               ← Back to Upload
             </Link>
           </div>
+
+          {/* AI Summary Section */}
+          {showSummary && (
+            <div className="mt-6 rounded-2xl border border-white/5 bg-gradient-to-r from-sky-500/10 to-emerald-500/10 p-6 backdrop-blur">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-white">AI Spending Insights</p>
+                  <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-xs text-emerald-200">
+                    Powered by Groq
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowSummary(false)}
+                  className="text-xs text-slate-400 hover:text-slate-200"
+                >
+                  Hide
+                </button>
+              </div>
+              
+              {isGeneratingSummary ? (
+                <div className="flex items-center gap-3">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent"></div>
+                  <span className="text-sm text-slate-300">Analyzing your spending patterns...</span>
+                </div>
+              ) : bulkSummary ? (
+                <div>
+                  <p className="text-base leading-relaxed text-slate-200">{bulkSummary}</p>
+                  <button
+                    onClick={generateBulkSummary}
+                    className="mt-3 text-xs text-emerald-300 hover:text-emerald-200"
+                  >
+                    🔄 Regenerate Summary
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={generateBulkSummary}
+                  className="rounded-lg bg-emerald-500/90 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400"
+                >
+                  Generate AI Summary
+                </button>
+              )}
+            </div>
+          )}
+
+          {!showSummary && (
+            <button
+              onClick={() => {
+                setShowSummary(true);
+                if (!bulkSummary) generateBulkSummary();
+              }}
+              className="mt-4 text-sm text-emerald-300 hover:text-emerald-200"
+            >
+              📊 Show AI Insights
+            </button>
+          )}
 
           {/* Stats */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
